@@ -1,0 +1,6 @@
+[workspace]
+members = [
+  "nilscript-vm",
+  "nilscript-bytecode",
+]
+resolver = "2"
