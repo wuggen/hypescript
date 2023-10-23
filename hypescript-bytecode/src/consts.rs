@@ -1,0 +1,49 @@
+//! Bytecode constants
+//!
+//! This module contains constant values for HypeScript bytecode, including opcode values.
+
+pub const VARST: u8 = 0x18;
+pub const VARLD: u8 = 0x1a;
+pub const VARRES: u8 = 0x1c;
+pub const VARDISC: u8 = 0x1d;
+pub const NUMVARS: u8 = 0x1e;
+pub const PUSH8: u8 = 0x28;
+pub const PUSH8S: u8 = 0x29;
+pub const PUSH16: u8 = 0x2a;
+pub const PUSH16S: u8 = 0x2b;
+pub const PUSH32: u8 = 0x2c;
+pub const PUSH32S: u8 = 0x2d;
+pub const PUSH64: u8 = 0x2e;
+pub const DUP0: u8 = 0x30;
+pub const DUP1: u8 = 0x31;
+pub const DUP2: u8 = 0x32;
+pub const DUP3: u8 = 0x33;
+pub const POP: u8 = 0x34;
+pub const SWAP: u8 = 0x35;
+pub const ADD: u8 = 0x38;
+pub const SUB: u8 = 0x39;
+pub const MUL: u8 = 0x3a;
+pub const MOD: u8 = 0x3b;
+pub const DIV: u8 = 0x3c;
+pub const DIVS: u8 = 0x3d;
+pub const GT: u8 = 0x50;
+pub const GTS: u8 = 0x51;
+pub const LT: u8 = 0x52;
+pub const LTS: u8 = 0x53;
+pub const GE: u8 = 0x54;
+pub const GES: u8 = 0x55;
+pub const LE: u8 = 0x56;
+pub const LES: u8 = 0x57;
+pub const EQ: u8 = 0x58;
+pub const AND: u8 = 0x59;
+pub const OR: u8 = 0x5a;
+pub const XOR: u8 = 0x5b;
+pub const NOT: u8 = 0x5c;
+pub const INV: u8 = 0x5d;
+pub const JUMP: u8 = 0x60;
+pub const JCOND: u8 = 0x61;
+pub const READ: u8 = 0xfa;
+pub const READS: u8 = 0xfb;
+pub const PRINT: u8 = 0xfc;
+pub const PRINTS: u8 = 0xfd;
+pub const HALT: u8 = 0xff;
