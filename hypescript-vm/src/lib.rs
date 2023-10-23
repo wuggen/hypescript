@@ -13,6 +13,14 @@ use hypescript_util::array_from_slice;
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Value([u8; 8]);
 
+// In many circumstances, a `Value` can be regarded as signed or unsigned; since a single
+// implementation of a trait from `std::ops` would be insufficient in these cases, we make these
+// operations (e.g. comparisons, division) inherent methods suffixed with `_signed` or `_unsigned`.
+// For consistency, those operations that are bitwise identical between signed and unsigned are
+// also implemented as inherent methods, but without the suffixes, rather than via the trait
+// implementations. Their names are then identical to trait methods from `std::ops`, which clippy
+// complains about by default. So we silence it.
+#[allow(clippy::should_implement_trait)]
 impl Value {
     /// Get the low-order byte of this value.
     pub fn as_u8(&self) -> u8 {
