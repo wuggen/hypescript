@@ -1,6 +1,6 @@
-//! # The NilScript Virtual Machine
+//! # The HypeScript Virtual Machine
 //!
-//! This crate implements the NilScript VM execution engine.
+//! This crate implements the HypeScript VM execution engine.
 
 pub mod vars;
 

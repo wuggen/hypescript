@@ -1,6 +1,6 @@
-//! # NilScript bytecode definitions
+//! # HypeScript bytecode definitions
 //!
-//! This crate provides types and functions for working with NilScript bytecode. This includes
+//! This crate provides types and functions for working with HypeScript bytecode. This includes
 //! writing and parsing bytecode, and querying information about opcodes, but not execution; see
 //! the `nilscript-vm` crate for an execution engine.
 
@@ -13,7 +13,7 @@ fn array_from_slice<const N: usize>(slice: &[u8]) -> [u8; N] {
     arr
 }
 
-/// Opcodes recognized by the NilScript VM.
+/// Opcodes recognized by the HypeScript VM.
 ///
 /// This enum can be converted to the binary forms of opcodes via `u8::from` or primitive
 /// conversion to a `u8`.

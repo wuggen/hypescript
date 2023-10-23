@@ -1,6 +1,6 @@
 [workspace]
 members = [
-  "nilscript-vm",
-  "nilscript-bytecode",
+  "hypescript-vm",
+  "hypescript-bytecode",
 ]
 resolver = "2"
