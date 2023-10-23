@@ -4,16 +4,10 @@
 //! writing and parsing bytecode, and querying information about opcodes, but not execution; see
 //! the `nilscript-vm` crate for an execution engine.
 
+use hypescript_util::array_from_slice;
 use std::io;
 
-// TODO: refactor this into a separate util crate or something
-fn array_from_slice<const N: usize>(slice: &[u8]) -> [u8; N] {
-    let mut arr = [0; N];
-    arr.copy_from_slice(slice);
-    arr
-}
-
-/// Opcodes recognized by the HypeScript VM.
+/// Opcodes recognized by the NilScript VM.
 ///
 /// This enum can be converted to the binary forms of opcodes via `u8::from` or primitive
 /// conversion to a `u8`.

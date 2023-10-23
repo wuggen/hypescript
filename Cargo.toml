@@ -1,6 +1,7 @@
 [workspace]
 members = [
-  "hypescript-vm",
   "hypescript-bytecode",
+  "hypescript-util",
+  "hypescript-vm",
 ]
 resolver = "2"

@@ -4,12 +4,7 @@
 
 pub mod vars;
 
-// TODO: refactor this into a separate util crate or something
-fn array_from_slice<const N: usize>(slice: &[u8]) -> [u8; N] {
-    let mut arr = [0; N];
-    arr.copy_from_slice(slice);
-    arr
-}
+use hypescript_util::array_from_slice;
 
 /// A value in a stack or variable slot.
 ///

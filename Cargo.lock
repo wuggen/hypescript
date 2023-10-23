@@ -6,12 +6,20 @@ version = 3
 name = "hypescript-bytecode"
 version = "0.1.0"
 dependencies = [
+ "hypescript-util",
  "thiserror",
 ]
 
 [[package]]
+name = "hypescript-util"
+version = "0.1.0"
+
+[[package]]
 name = "hypescript-vm"
 version = "0.1.0"
+dependencies = [
+ "hypescript-util",
+]
 
 [[package]]
 name = "proc-macro2"
