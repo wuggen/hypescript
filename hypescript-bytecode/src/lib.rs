@@ -233,6 +233,11 @@ pub struct Instruction {
 }
 
 impl Instruction {
+    /// Create a new `Instruction`.
+    pub fn new(opcode: Opcode, literal: u64) -> Self {
+        Self { opcode, literal }
+    }
+
     /// Decode a single instruction from a stream.
     ///
     /// This function makes very small reads. It is recommended to use it on buffered streams to
@@ -243,7 +248,7 @@ impl Instruction {
     /// If the given stream returns an error, this function will return that error unmodified.
     ///
     /// If there is an error in decoding, (e.g. an unrecognized opcode,) this function will return
-    /// an error with error kind `Other`, whose source is downcastable to [`DecodeError`].
+    /// an error with error kind `Other`, whose wrapped error is downcastable to [`DecodeError`].
     pub fn decode_from_stream<R: io::Read>(stream: &mut R) -> io::Result<Self> {
         let mut buf = [0; 8];
         stream.read_exact(&mut buf[..1])?;
@@ -296,4 +301,114 @@ impl Instruction {
 pub enum DecodeError {
     #[error("Unrecognized opcode")]
     UnrecognizedOpcode,
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn encode() -> io::Result<()> {
+        let pairs: &[(_, &[u8])] = &[
+            (Instruction::new(Opcode::Gt, 0), &[GT]),
+            (Instruction::new(Opcode::Div, 14), &[DIV]), // Lits are ignored for standalone opcodes
+            (Instruction::new(Opcode::Push8, 0), &[PUSH8, 0]),
+            (Instruction::new(Opcode::Push8, 155), &[PUSH8, 155]),
+            (
+                Instruction::new(Opcode::Push16, 0x12345), // Lits are truncated for shorter lits
+                &[PUSH16, 0x23, 0x45],
+            ),
+            (
+                Instruction::new(Opcode::Push16S, 0x8455), // Signed lits are written correctly
+                &[PUSH16S, 0x84, 0x55],
+            ),
+            (
+                Instruction::new(Opcode::Push32, 0xdeadbeef),
+                &[PUSH32, 0xde, 0xad, 0xbe, 0xef],
+            ),
+            (
+                Instruction::new(Opcode::Push64, 0xdeadbeef),
+                &[PUSH64, 0, 0, 0, 0, 0xde, 0xad, 0xbe, 0xef],
+            ),
+        ];
+
+        let mut stream = Vec::new();
+        for (instr, bytes) in pairs {
+            stream.clear();
+
+            instr.encode_to_stream(&mut stream)?;
+            assert_eq!(&stream, bytes);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn decode_successful() -> io::Result<()> {
+        let pairs: &[(_, &[u8])] = &[
+            (Instruction::new(Opcode::Gt, 0), &[GT]),
+            // Only extracts first instruction:
+            (Instruction::new(Opcode::Div, 0), &[DIV, 3, 4, 5, 6]),
+            (Instruction::new(Opcode::Push8, 0), &[PUSH8, 0]),
+            // Only extracts first instruction in presence of literal:
+            (Instruction::new(Opcode::Push8, 155), &[PUSH8, 155, 3, 4, 5]),
+            (
+                Instruction::new(Opcode::Push16, 0x2345),
+                &[PUSH16, 0x23, 0x45],
+            ),
+            (
+                Instruction::new(Opcode::Push16S, 0xffffffffffff8455), // Signed lits are sign-extended
+                &[PUSH16S, 0x84, 0x55],
+            ),
+            (
+                Instruction::new(Opcode::Push32, 0xdeadbeef),
+                &[PUSH32, 0xde, 0xad, 0xbe, 0xef],
+            ),
+            (
+                Instruction::new(Opcode::Push64, 0xdeadbeef), // Unsigned lits are zero-extended
+                &[PUSH64, 0, 0, 0, 0, 0xde, 0xad, 0xbe, 0xef],
+            ),
+        ];
+
+        for (instr, bytes) in pairs {
+            let mut stream = *bytes;
+
+            let decoded = Instruction::decode_from_stream(&mut stream)?;
+            let expected_amt_read = 1 + instr.opcode.literal_len();
+
+            assert_eq!(*instr, decoded);
+            assert_eq!(&bytes[expected_amt_read..], stream);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn decode_unsuccessful() {
+        // Empty stream
+        let mut stream: &[u8] = &[];
+        let err = Instruction::decode_from_stream(&mut stream).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof);
+
+        // Missing literal
+        let mut stream: &[u8] = &[PUSH8];
+        let err = Instruction::decode_from_stream(&mut stream).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof);
+
+        // Incomplete literal
+        let mut stream: &[u8] = &[PUSH32, 1, 2, 3];
+        let err = Instruction::decode_from_stream(&mut stream).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof);
+
+        // Unrecognized opcode
+        let mut stream: &[u8] = &[0x20];
+        let err = Instruction::decode_from_stream(&mut stream).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::Other);
+        let err = err
+            .into_inner()
+            .expect("Error has no inner err")
+            .downcast::<DecodeError>()
+            .expect("Downcast failed");
+        assert!(matches!(*err, DecodeError::UnrecognizedOpcode));
+    }
 }
