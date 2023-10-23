@@ -4,6 +4,15 @@
 //! writing and parsing bytecode, and querying information about opcodes, but not execution; see
 //! the `nilscript-vm` crate for an execution engine.
 
+use std::io;
+
+// TODO: refactor this into a separate util crate or something
+fn array_from_slice<const N: usize>(slice: &[u8]) -> [u8; N] {
+    let mut arr = [0; N];
+    arr.copy_from_slice(slice);
+    arr
+}
+
 /// Opcodes recognized by the NilScript VM.
 ///
 /// This enum can be converted to the binary forms of opcodes via `u8::from` or primitive
@@ -120,9 +129,68 @@ impl Opcode {
         }
     }
 
-    /// Get the number of bytes in the inline literal expected by this opcode, if any.
+    /// Translate an opcode mnemonic into an `Opcode`.
     ///
-    /// For opcodes that do not expect an inline literal value, this will return 0.
+    /// This function accepts mnemonics spelled with any combination of upper or lower case
+    /// letters, and with any amount or kind of leading or trailing whitespace.
+    pub fn from_mnemonic(mnemonic: &str) -> Option<Self> {
+        let mut s = String::from(mnemonic);
+        s.make_ascii_lowercase();
+        match s.trim() {
+            "varst" => Some(Self::VarSt),
+            "varld" => Some(Self::VarLd),
+            "varres" => Some(Self::VarRes),
+            "vardisc" => Some(Self::VarDisc),
+            "numvars" => Some(Self::NumVars),
+            "push8" => Some(Self::Push8),
+            "push8s" => Some(Self::Push8S),
+            "push16" => Some(Self::Push16),
+            "push16s" => Some(Self::Push16S),
+            "push32" => Some(Self::Push32),
+            "push32s" => Some(Self::Push32S),
+            "push64" => Some(Self::Push64),
+            "dup0" => Some(Self::Dup0),
+            "dup1" => Some(Self::Dup1),
+            "dup2" => Some(Self::Dup2),
+            "dup3" => Some(Self::Dup3),
+            "pop" => Some(Self::Pop),
+            "swap" => Some(Self::Swap),
+            "add" => Some(Self::Add),
+            "sub" => Some(Self::Sub),
+            "mul" => Some(Self::Mul),
+            "muls" => Some(Self::MulS),
+            "div" => Some(Self::Div),
+            "divs" => Some(Self::DivS),
+            "mod" => Some(Self::Mod),
+            "mods" => Some(Self::ModS),
+            "gt" => Some(Self::Gt),
+            "gts" => Some(Self::GtS),
+            "lt" => Some(Self::Lt),
+            "lts" => Some(Self::LtS),
+            "ge" => Some(Self::Ge),
+            "ges" => Some(Self::GeS),
+            "le" => Some(Self::Le),
+            "les" => Some(Self::LeS),
+            "eq" => Some(Self::Eq),
+            "and" => Some(Self::And),
+            "or" => Some(Self::Or),
+            "xor" => Some(Self::Xor),
+            "not" => Some(Self::Not),
+            "inv" => Some(Self::Inv),
+            "jump" => Some(Self::Jump),
+            "jcond" => Some(Self::JCond),
+            "read" => Some(Self::Read),
+            "reads" => Some(Self::ReadS),
+            "print" => Some(Self::Print),
+            "prints" => Some(Self::PrintS),
+            "halt" => Some(Self::Halt),
+            _ => None,
+        }
+    }
+
+    /// Get the number of bytes in the inline literal expected by this opcode.
+    ///
+    /// This will be 0, 1, 2, 4, or 8.
     pub fn literal_len(self) -> usize {
         match self {
             Opcode::Push8 | Opcode::Push8S => 1,
@@ -130,6 +198,16 @@ impl Opcode {
             Opcode::Push32 | Opcode::Push32S => 4,
             Opcode::Push64 => 8,
             _ => 0,
+        }
+    }
+
+    /// Get the signedness of the inline literal expected by this opcode.
+    ///
+    /// For opcodes that do not expect an inline literal, this will return `Unsigned`.
+    pub fn literal_signedness(self) -> Signedness {
+        match self {
+            Self::Push8S | Self::Push16S | Self::Push32S => Signedness::Signed,
+            _ => Signedness::Unsigned,
         }
     }
 }
@@ -151,4 +229,78 @@ impl TryFrom<u8> for Opcode {
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         Opcode::from_u8(value).ok_or(InvalidOpcodeError)
     }
+}
+
+/// The signedness of a literal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum Signedness {
+    #[default]
+    Unsigned,
+    Signed,
+}
+
+/// A decoded bytecode instruction.
+///
+/// This includes the opcode and, if applicable, the literal value.
+///
+/// Note that all values of this struct have a literal, even though most opcodes do not expect a
+/// literal. Note also that the literal stored in this struct is of constant bit width, even though
+/// not all opcodes that expect literals expect the same size of literal. These apparent
+/// discrepancies are handled as follows:
+///
+/// - During decoding, any opcode that does not expect a literal will cause the `literal` field to
+///   be set to 0. Any literals shorter than 64 bits will be copied into the low order bits of the
+///   `literal` field, with sign extension as appropriate.
+/// - During encoding, any opcode that does not expect a literal will cause the `literal` field to
+///   be ignored. Any literals shorter than 64 bits will be truncated from the `literal` field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Instruction {
+    pub opcode: Opcode,
+    pub literal: u64,
+}
+
+impl Instruction {
+    pub fn decode_from_stream<R: io::Read>(stream: &mut R) -> io::Result<Self> {
+        let mut buf = [0; 8];
+        stream.read_exact(&mut buf[..1])?;
+        let opcode = Opcode::from_u8(buf[0])
+            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, DecodeError::UnrecognizedOpcode))?;
+
+        let lit_len = opcode.literal_len();
+        let literal = if lit_len > 0 {
+            stream.read_exact(&mut buf[..lit_len])?;
+            match opcode {
+                Opcode::Push8 => buf[0] as u64,
+                Opcode::Push8S => buf[0] as i8 as u64,
+                Opcode::Push16 => u16::from_be_bytes(array_from_slice(&buf[..2])) as u64,
+                Opcode::Push16S => i16::from_be_bytes(array_from_slice(&buf[..2])) as u64,
+                Opcode::Push32 => u32::from_be_bytes(array_from_slice(&buf[..4])) as u64,
+                Opcode::Push32S => i32::from_be_bytes(array_from_slice(&buf[..4])) as u64,
+                Opcode::Push64 => u64::from_be_bytes(buf),
+                _ => unreachable!(),
+            }
+        } else {
+            0
+        };
+
+        Ok(Instruction { opcode, literal })
+    }
+
+    pub fn encode_to_stream<W: io::Write>(&self, stream: &mut W) -> io::Result<()> {
+        stream.write_all(&[self.opcode as u8])?;
+
+        let lit_len = self.opcode.literal_len();
+        if lit_len > 0 {
+            let buf = self.literal.to_be_bytes();
+            stream.write_all(&buf[8 - lit_len..])?;
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum DecodeError {
+    #[error("Unrecognized opcode")]
+    UnrecognizedOpcode,
 }
