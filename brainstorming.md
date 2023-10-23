@@ -173,19 +173,23 @@
 
   **Push:** A + B
 
+  **Notes:** This operation silently wraps on overflow.
+
 - **`sub`** Integer subtraction
 
   **Pop:** Integers A, B
 
   **Push:** A - B
 
-- **`mul` `muls`** Integer multiplication
+  **Notes:** This operation silently wraps on underflow.
+
+- **`mul`** Integer multiplication
 
   **Pop:** Integers A, B
 
   **Push:** A \* B
 
-  **Variants:** `mul` regards its operands as unsigned. `muls` regards them as signed.
+  **Notes:** This operation silently wraps on overflow.
 
 - **`div` `divs`** Integer division
 
@@ -197,13 +201,11 @@
 
   **Exceptions:** B is zero.
 
-- **`mod` `mods`** Integer modulo
+- **`mod`** Integer modulo
 
-  **Pop:** Integers A, B
+  **Pop:** Unsigned integers A, B
 
   **Push:** A mod B
-
-  **Variants:** `mod` regards its operands as unsigned. `mods` regards them as signed.
 
   **Exceptions:** B is zero.
 
@@ -383,12 +385,10 @@
 | 0x38                 | add         |
 | 0x39                 | sub         |
 | 0x3a                 | mul         |
-| 0x3b                 | muls        |
+| 0x3b                 | mod         |
 | 0x3c                 | div         |
 | 0x3d                 | divs        |
-| 0x3e                 | mod         |
-| 0x3f                 | mods        |
-| 0x40:0x4f            | [reserved]  |
+| 0x3e:0x4f            | [reserved]  |
 | 0x50                 | gt          |
 | 0x51                 | gts         |
 | 0x52                 | lt          |

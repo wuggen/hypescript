@@ -44,11 +44,9 @@ pub enum Opcode {
     Add = 0x38,
     Sub = 0x39,
     Mul = 0x3a,
-    MulS = 0x3b,
+    Mod = 0x3b,
     Div = 0x3c,
     DivS = 0x3d,
-    Mod = 0x3e,
-    ModS = 0x3f,
     Gt = 0x50,
     GtS = 0x51,
     Lt = 0x52,
@@ -99,11 +97,9 @@ impl Opcode {
             0x38 => Some(Self::Add),
             0x39 => Some(Self::Sub),
             0x3a => Some(Self::Mul),
-            0x3b => Some(Self::MulS),
+            0x3b => Some(Self::Mod),
             0x3c => Some(Self::Div),
             0x3d => Some(Self::DivS),
-            0x3e => Some(Self::Mod),
-            0x3f => Some(Self::ModS),
             0x50 => Some(Self::Gt),
             0x51 => Some(Self::GtS),
             0x52 => Some(Self::Lt),
@@ -158,11 +154,9 @@ impl Opcode {
             "add" => Some(Self::Add),
             "sub" => Some(Self::Sub),
             "mul" => Some(Self::Mul),
-            "muls" => Some(Self::MulS),
+            "mod" => Some(Self::Mod),
             "div" => Some(Self::Div),
             "divs" => Some(Self::DivS),
-            "mod" => Some(Self::Mod),
-            "mods" => Some(Self::ModS),
             "gt" => Some(Self::Gt),
             "gts" => Some(Self::GtS),
             "lt" => Some(Self::Lt),
@@ -200,16 +194,6 @@ impl Opcode {
             _ => 0,
         }
     }
-
-    /// Get the signedness of the inline literal expected by this opcode.
-    ///
-    /// For opcodes that do not expect an inline literal, this will return `Unsigned`.
-    pub fn literal_signedness(self) -> Signedness {
-        match self {
-            Self::Push8S | Self::Push16S | Self::Push32S => Signedness::Signed,
-            _ => Signedness::Unsigned,
-        }
-    }
 }
 
 impl From<Opcode> for u8 {
@@ -229,14 +213,6 @@ impl TryFrom<u8> for Opcode {
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         Opcode::from_u8(value).ok_or(InvalidOpcodeError)
     }
-}
-
-/// The signedness of a literal.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub enum Signedness {
-    #[default]
-    Unsigned,
-    Signed,
 }
 
 /// A decoded bytecode instruction.
@@ -260,6 +236,17 @@ pub struct Instruction {
 }
 
 impl Instruction {
+    /// Decode a single instruction from a stream.
+    ///
+    /// This function makes very small reads. It is recommended to use it on buffered streams to
+    /// improve performance.
+    ///
+    /// # Errors
+    ///
+    /// If the given stream returns an error, this function will return that error unmodified.
+    ///
+    /// If there is an error in decoding, (e.g. an unrecognized opcode,) this function will return
+    /// an error with error kind `Other`, whose source is downcastable to [`DecodeError`].
     pub fn decode_from_stream<R: io::Read>(stream: &mut R) -> io::Result<Self> {
         let mut buf = [0; 8];
         stream.read_exact(&mut buf[..1])?;
@@ -286,6 +273,14 @@ impl Instruction {
         Ok(Instruction { opcode, literal })
     }
 
+    /// Encode an instruction into a stream.
+    ///
+    /// This function makes very small writes. It is recommended to use it on buffered streams to
+    /// improve performance.
+    ///
+    /// # Errors
+    ///
+    /// Any errors returned from the stream will be returned unmodified.
     pub fn encode_to_stream<W: io::Write>(&self, stream: &mut W) -> io::Result<()> {
         stream.write_all(&[self.opcode as u8])?;
 
@@ -299,6 +294,7 @@ impl Instruction {
     }
 }
 
+/// Error returned by [`Instruction`] encoding and decoding.
 #[derive(Debug, thiserror::Error)]
 pub enum DecodeError {
     #[error("Unrecognized opcode")]

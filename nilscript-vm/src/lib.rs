@@ -4,8 +4,6 @@
 
 pub mod vars;
 
-use std::ops::*;
-
 // TODO: refactor this into a separate util crate or something
 fn array_from_slice<const N: usize>(slice: &[u8]) -> [u8; N] {
     let mut arr = [0; N];
@@ -146,74 +144,112 @@ impl Value {
         }
     }
 
+    /// Add two values as integers, wrapping on overflow.
     pub fn add(self, rhs: Self) -> Self {
         Self::from_u64(self.as_u64().wrapping_add(rhs.as_u64()))
     }
 
+    /// Subtract two values as integers, wrapping on underflow.
     pub fn sub(self, rhs: Self) -> Self {
         Self::from_u64(self.as_u64().wrapping_sub(rhs.as_u64()))
     }
 
-    pub fn mul_unsigned(self, rhs: Self) -> Self {
+    /// Multiply two values as integers, wrapping on overflow.
+    pub fn mul(self, rhs: Self) -> Self {
         Self::from_u64(self.as_u64().wrapping_mul(rhs.as_u64()))
     }
 
-    pub fn mul_signed(self, rhs: Self) -> Self {
-        Self::from_i64(self.as_i64().wrapping_mul(rhs.as_i64()))
-    }
-
+    /// Divide two values as unsigned integers.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if `rhs` is zero.
     pub fn div_unsigned(self, rhs: Self) -> Self {
         Self::from_u64(self.as_u64().wrapping_div(rhs.as_u64()))
     }
 
+    /// Divide two values as signed integers.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if `rhs` is zero.
     pub fn div_signed(self, rhs: Self) -> Self {
         Self::from_i64(self.as_i64().wrapping_div(rhs.as_i64()))
     }
 
-    pub fn mod_unsigned(self, rhs: Self) -> Self {
+    /// Take the modulo of two values as unsigned integers.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if `rhs` is zero.
+    pub fn mod_(self, rhs: Self) -> Self {
         Self::from_u64(self.as_u64() % rhs.as_u64())
     }
 
-    pub fn mod_signed(self, rhs: Self) -> Self {
-        Self::from_i64(self.as_i64() % rhs.as_i64())
-    }
-
+    /// Check if `self` is greater than `rhs`, as unsigned integers.
+    ///
+    /// Returns a value of 1 for true, and 0 for false.
     pub fn greater_unsigned(self, rhs: Self) -> Self {
         Self::from_u64((self.as_u64() > rhs.as_u64()) as u64)
     }
 
+    /// Check if `self` is greater than `rhs`, as signed integers.
+    ///
+    /// Returns a value of 1 for true, and 0 for false.
     pub fn greater_signed(self, rhs: Self) -> Self {
         Self::from_u64((self.as_i64() > rhs.as_i64()) as u64)
     }
 
+    /// Check if `self` is less than `rhs`, as unsigned integers.
+    ///
+    /// Returns a value of 1 for true, and 0 for false.
     pub fn less_unsigned(self, rhs: Self) -> Self {
         Self::from_u64((self.as_u64() < rhs.as_u64()) as u64)
     }
 
+    /// Check if `self` is less than `rhs`, as signed integers.
+    ///
+    /// Returns a value of 1 for true, and 0 for false.
     pub fn less_signed(self, rhs: Self) -> Self {
         Self::from_u64((self.as_i64() < rhs.as_i64()) as u64)
     }
 
+    /// Check if `self` is greater than or equal to `rhs`, as unsigned integers.
+    ///
+    /// Returns a value of 1 for true, and 0 for false.
     pub fn greater_or_eq_unsigned(self, rhs: Self) -> Self {
         Self::from_u64((self.as_u64() >= rhs.as_u64()) as u64)
     }
 
+    /// Check if `self` is greater than or equal to `rhs`, as signed integers.
+    ///
+    /// Returns a value of 1 for true, and 0 for false.
     pub fn greater_or_eq_signed(self, rhs: Self) -> Self {
         Self::from_u64((self.as_i64() >= rhs.as_i64()) as u64)
     }
 
+    /// Check if `self` is less than or equal to `rhs`, as unsigned integers.
+    ///
+    /// Returns a value of 1 for true, and 0 for false.
     pub fn less_or_eq_unsigned(self, rhs: Self) -> Self {
         Self::from_u64((self.as_u64() <= rhs.as_u64()) as u64)
     }
 
+    /// Check if `self` is less than or equal to `rhs`, as signed integers.
+    ///
+    /// Returns a value of 1 for true, and 0 for false.
     pub fn less_or_eq_signed(self, rhs: Self) -> Self {
         Self::from_u64((self.as_i64() <= rhs.as_i64()) as u64)
     }
 
+    /// Check if `self` is equal to `rhs`.
+    ///
+    /// Returns a value of 1 for true, and 0 for false.
     pub fn eq(self, rhs: Self) -> Self {
         Self::from_u64((self.0 == rhs.0) as u64)
     }
 
+    /// Compute the bitwise AND of two values.
     pub fn and(self, rhs: Self) -> Self {
         let mut res = self;
         for (a, b) in res.0.iter_mut().zip(rhs.0.iter().copied()) {
@@ -222,6 +258,7 @@ impl Value {
         res
     }
 
+    /// Compute the bitwise OR of two values.
     pub fn or(self, rhs: Self) -> Self {
         let mut res = self;
         for (a, b) in res.0.iter_mut().zip(rhs.0.iter().copied()) {
@@ -230,6 +267,7 @@ impl Value {
         res
     }
 
+    /// Compute the bitwise XOR of two values.
     pub fn xor(self, rhs: Self) -> Self {
         let mut res = self;
         for (a, b) in res.0.iter_mut().zip(rhs.0.iter().copied()) {
@@ -238,8 +276,16 @@ impl Value {
         res
     }
 
+    /// Get the logical negation of a value.
+    ///
+    /// Returns a value of 1 if `self` is 0, and a value of 0 otherwise.
     pub fn not(self) -> Self {
-        todo!()
+        Self::from_u64((self.as_u64() == 0) as u64)
+    }
+
+    /// Compute the bitwise NOT of a value.
+    pub fn inv(self) -> Self {
+        Self::from_u64(!self.as_u64())
     }
 }
 
