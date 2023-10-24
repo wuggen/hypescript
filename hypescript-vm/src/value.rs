@@ -1,12 +1,14 @@
 //! Stack and variable values.
 
+use crate::error::*;
+
 use hypescript_util::array_from_slice;
 
 /// A value in a stack or variable slot.
 ///
 /// This wraps a `u64`, and provides utility methods for manipulating and retrieving its value as
 /// various types.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Value(u64);
 
 macro_rules! as_method {
@@ -116,29 +118,47 @@ impl Value {
 
     /// Divide two values as unsigned integers.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// This function will panic if `rhs` is zero.
-    pub fn div_unsigned(self, rhs: Self) -> Self {
-        Self::from_u64(self.as_u64().wrapping_div(rhs.as_u64()))
+    /// If `rhs` is zero, this function will return an error with kind [`ErrorKind::DivideByZero`],
+    /// and program counter set to zero.
+    pub fn div_unsigned(self, rhs: Self) -> Result<Self> {
+        Ok(Self::from_u64(
+            self.as_u64().checked_div(rhs.as_u64()).ok_or(Error {
+                kind: ErrorKind::DivideByZero,
+                pc: 0,
+            })?,
+        ))
     }
 
     /// Divide two values as signed integers.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// This function will panic if `rhs` is zero.
-    pub fn div_signed(self, rhs: Self) -> Self {
-        Self::from_i64(self.as_i64().wrapping_div(rhs.as_i64()))
+    /// If `rhs` is zero, this function will return an error with kind [`ErrorKind::DivideByZero`],
+    /// and program counter set to zero.
+    pub fn div_signed(self, rhs: Self) -> Result<Self> {
+        Ok(Self::from_i64(
+            self.as_i64().checked_div(rhs.as_i64()).ok_or(Error {
+                kind: ErrorKind::DivideByZero,
+                pc: 0,
+            })?,
+        ))
     }
 
     /// Take the modulo of two values as unsigned integers.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// This function will panic if `rhs` is zero.
-    pub fn mod_(self, rhs: Self) -> Self {
-        Self::from_u64(self.as_u64() % rhs.as_u64())
+    /// If `rhs` is zero, this function will return an error with kind [`ErrorKind::DivideByZero`],
+    /// and program counter set to zero.
+    pub fn mod_(self, rhs: Self) -> Result<Self> {
+        Ok(Self::from_u64(
+            self.as_u64().checked_rem(rhs.as_u64()).ok_or(Error {
+                kind: ErrorKind::DivideByZero,
+                pc: 0,
+            })?,
+        ))
     }
 
     /// Check if `self` is greater than `rhs`, as unsigned integers.
@@ -230,4 +250,179 @@ impl Value {
     pub fn inv(self) -> Self {
         Self::from_u64(!self.as_u64())
     }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn from_unsigned() {
+        assert_eq!(Value::from_u8(0x8f).as_u64(), 0x8f);
+        assert_eq!(Value::from_u16(0x1234).as_u64(), 0x1234);
+        assert_eq!(Value::from_u16(0x44).as_u64(), 0x44);
+        assert_eq!(Value::from_u32(0xdeadbeef).as_u64(), 0xdeadbeef);
+        assert_eq!(
+            Value::from_u64(0x1234567890abcdef).as_u64(),
+            0x1234567890abcdef
+        );
+    }
+
+    #[test]
+    fn from_signed() {
+        assert_eq!(Value::from_i8(0x34).as_u64(), 0x34);
+        assert_eq!(Value::from_i8(0x8f_u8 as i8).as_u64(), 0xffffffffffffff8f);
+        assert_eq!(Value::from_i16(0x1234).as_u64(), 0x1234);
+        assert_eq!(
+            Value::from_i16(0x8234_u16 as i16).as_u64(),
+            0xffffffffffff8234
+        );
+        assert_eq!(Value::from_i32(0x7eadbeef).as_u64(), 0x7eadbeef);
+        assert_eq!(
+            Value::from_i32(0xdeadbeef_u32 as i32).as_u64(),
+            0xffffffffdeadbeef
+        );
+        assert_eq!(
+            Value::from_i64(0x1234567890abcdef).as_u64(),
+            0x1234567890abcdef
+        );
+        assert_eq!(
+            Value::from_i64(0x890abcdef1234567_u64 as i64).as_u64(),
+            0x890abcdef1234567
+        );
+    }
+
+    #[test]
+    fn bytes_conversions() {
+        assert_eq!(
+            Value::from_u32(0xdeadbeef).as_bytes(),
+            [0, 0, 0, 0, 0xde, 0xad, 0xbe, 0xef]
+        );
+        assert_eq!(Value::from_slice(&[125]).as_u64(), 125);
+        assert_eq!(Value::from_slice(&[0x12, 0x34]).as_u64(), 0x1234);
+        assert_eq!(
+            Value::from_slice(&[0xde, 0xad, 0xbe, 0xef]).as_u64(),
+            0xdeadbeef
+        );
+        assert_eq!(
+            Value::from_slice(&[0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef]).as_u64(),
+            0x1234567890abcdef
+        );
+    }
+
+    #[test]
+    fn addition() {
+        assert_eq!(
+            Value::from_u64(4).add(Value::from_u64(6)),
+            Value::from_u64(10)
+        );
+        assert_eq!(
+            Value::from_u64(100).add(Value::from_i64(-25)),
+            Value::from_u64(75)
+        );
+        assert_eq!(
+            Value::from_i64(-1).add(Value::from_u64(1)),
+            Value::from_u64(0)
+        );
+    }
+
+    #[test]
+    fn subtraction() {
+        assert_eq!(
+            Value::from_u64(1150).sub(Value::from_u64(150)),
+            Value::from_u64(1000)
+        );
+        assert_eq!(
+            Value::from_u64(1234).sub(Value::from_i64(-6)),
+            Value::from_u64(1240)
+        );
+        assert_eq!(
+            Value::from_u64(0).sub(Value::from_u64(1)),
+            Value::from_i64(-1)
+        );
+    }
+
+    #[test]
+    fn multiplication() {
+        assert_eq!(
+            Value::from_u64(8).mul(Value::from_u64(3)),
+            Value::from_u64(24)
+        );
+        assert_eq!(
+            Value::from_u64(12).mul(Value::from_i64(-2)),
+            Value::from_i64(-24)
+        );
+        assert_eq!(
+            Value::from_i64(-25).mul(Value::from_i64(-4)),
+            Value::from_u64(100)
+        );
+    }
+
+    #[test]
+    fn unsigned_division() {
+        assert_eq!(
+            Value::from_u64(12)
+                .div_unsigned(Value::from_u64(3))
+                .unwrap(),
+            Value::from_u64(4)
+        );
+        assert_eq!(
+            Value::from_u64(15)
+                .div_unsigned(Value::from_u64(4))
+                .unwrap(),
+            Value::from_u64(3)
+        );
+
+        assert_eq!(
+            Value::from_u64(1526)
+                .div_unsigned(Value::from_u64(0))
+                .unwrap_err()
+                .kind(),
+            ErrorKind::DivideByZero,
+        );
+    }
+
+    #[test]
+    fn signed_division() {
+        assert_eq!(
+            Value::from_u64(12).div_signed(Value::from_i64(-3)).unwrap(),
+            Value::from_i64(-4)
+        );
+        assert_eq!(
+            Value::from_i64(-36)
+                .div_signed(Value::from_i64(-18))
+                .unwrap(),
+            Value::from_u64(2)
+        );
+
+        assert_eq!(
+            Value::from_i64(-162456)
+                .div_signed(Value::from_i64(0))
+                .unwrap_err()
+                .kind(),
+            ErrorKind::DivideByZero
+        );
+    }
+
+    #[test]
+    fn modulo() {
+        assert_eq!(
+            Value::from_u64(64).mod_(Value::from_u64(5)).unwrap(),
+            Value::from_u64(4)
+        );
+        assert_eq!(
+            Value::from_u64(121).mod_(Value::from_u64(11)).unwrap(),
+            Value::from_u64(0)
+        );
+
+        assert_eq!(
+            Value::from_u64(1234)
+                .mod_(Value::from_u64(0))
+                .unwrap_err()
+                .kind(),
+            ErrorKind::DivideByZero
+        );
+    }
+
+    // TODO: tests for the rest of these methods :P
 }

@@ -2,7 +2,8 @@
 //!
 //! This crate implements the HypeScript VM execution engine.
 
-pub mod vars;
+pub mod error;
 pub mod value;
+pub mod vars;
 
 pub struct ExecutionContext {}

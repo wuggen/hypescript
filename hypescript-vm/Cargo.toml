@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 hypescript-util = { path = "../hypescript-util" }
+thiserror = "1.0.50"
