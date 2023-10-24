@@ -118,7 +118,8 @@
   **Effects:** Shrink the current local variable array by N slots, discarding higher-index
   values.
 
-  **Exceptions:** The local variable array is shorter than N slots.
+  **Notes:** If there are fewer than N local variables, the local variable array will be
+  cleared.
 
 - **`numvars` `numext`** Query number of variables
 

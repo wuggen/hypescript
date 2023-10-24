@@ -53,14 +53,14 @@ pub fn format_vars<W: fmt::Write>(stream: &mut W, vars: &[Value]) -> fmt::Result
 
 pub fn format_trace<W: fmt::Write>(stream: &mut W, trace: &[Snapshot]) -> fmt::Result {
     let mut first = true;
-    for snapshot in trace {
+    for (i, snapshot) in trace.iter().enumerate() {
         if !first {
             writeln!(stream)?;
         } else {
             first = false;
         }
 
-        write!(stream, "{snapshot}")?;
+        write!(stream, "{i} ==\n{snapshot}")?;
     }
 
     Ok(())

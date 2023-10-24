@@ -429,6 +429,10 @@ mod test {
 
     use super::*;
 
+    fn val_vec(values: &[u64]) -> Vec<Value> {
+        values.iter().copied().map(Value::from_u64).collect()
+    }
+
     fn test_program(program: &[u8], input: &str, validate: fn(ExecutionSummary, &str)) {
         let mut output = Vec::<u8>::new();
         let res = ExecutionContext::new(program)
@@ -566,22 +570,21 @@ mod test {
         #[rustfmt::skip]
         test_program(
             &[
-                PUSH8,
-                0,
-                PUSH8,
-                5,
+                PUSH8, 0,
+                PUSH8, 5,
                 JUMP,
-                PUSH8,
-                1,
+
+                PUSH8, 1,
                 ADD,
                 DUP0,
                 PRINT,
+
                 DUP0,
                 PUSH8, 10,
                 LT,
-                PUSH8S,
-                (-12i8) as u8,
+                PUSH8S, (-12i8) as u8,
                 JCOND,
+
                 POP,
             ],
             "",
@@ -592,4 +595,274 @@ mod test {
             },
         );
     }
+
+    #[test]
+    fn var_management() {
+        #[rustfmt::skip]
+        test_program(
+            &[
+                // pc 0, trace step 0
+                PUSH8, 4,
+                VARRES,
+
+                // pc 3, tr 2
+                NUMVARS,
+                POP,
+
+                // pc 5, tr 4
+                PUSH8, 2,
+                VARDISC,
+
+                // pc 8, tr 6
+                NUMVARS,
+                POP,
+
+                // pc 10, tr 8
+                PUSH8, 12,
+                PUSH8, 0,
+                VARST,
+
+                // pc 15, tr 11
+                PUSH8, 15,
+                PUSH8, 1,
+                VARST,
+
+                // pc 20, tr 14
+                PUSH8, 0,
+                VARLD,
+                POP,
+
+                // pc 24, tr 17
+                PUSH8, 1,
+                VARLD,
+                POP,
+
+                // pc 28, tr 20
+            ],
+            "",
+            |summary, _| {
+                let trace = summary.trace.as_ref().unwrap();
+
+                // Reserve 4 vars, push num vars
+                assert_eq!(trace[2].local_variables, &[Value::from_u8(0); 4]);
+                assert_eq!(*trace[3].stack.last().unwrap(), Value::from_u8(4));
+
+                // Discard 2 vars, push num vars
+                assert_eq!(trace[6].local_variables, &[Value::from_u8(0); 2]);
+                assert_eq!(*trace[7].stack.last().unwrap(), Value::from_u8(2));
+
+                // Store 12 in var 0, 15 in var 1
+                assert_eq!(trace[11].local_variables, &[Value::from_u8(12), Value::from_u8(0)]);
+                assert_eq!(trace[14].local_variables, &[Value::from_u8(12), Value::from_u8(15)]);
+
+                // Load var 0, var 1
+                assert_eq!(*trace[16].stack.last().unwrap(), Value::from_u8(12));
+                assert_eq!(*trace[19].stack.last().unwrap(), Value::from_u8(15));
+            }
+        );
+    }
+
+    #[test]
+    fn stack_management() {
+        #[rustfmt::skip]
+        test_program(
+            &[
+                // tr 0
+                PUSH8, 4,
+                PUSH8S, 0xff,
+
+                // tr 2
+                PUSH16, 0xbe, 0xef,
+                PUSH16S, 0xca, 0xfe,
+
+                // tr 4
+                PUSH32, 0, 0, 0xde, 0xed,
+                PUSH32S, 0xde, 0xad, 0xbe, 0xef,
+
+                // tr 6
+                PUSH64, 0xde, 0xad, 0xbe, 0xef, 0xca, 0xfe, 0xfa, 0xce,
+
+                // tr 7
+                SWAP, SWAP,
+
+                // tr 9
+                DUP0, POP,
+
+                // tr 11
+                DUP1, POP,
+
+                // tr 13
+                DUP2, POP,
+
+                // tr 15
+                DUP3, POP,
+
+                // tr 17
+            ],
+            "",
+            |summary, _ | {
+                let trace = summary.trace.as_ref().unwrap();
+
+                // push8, push8s
+                assert_eq!(trace[2].stack, val_vec(&[4, 0xffffffffffffffff]));
+
+                // push16, push16s
+                assert_eq!(trace[4].stack, val_vec(&[
+                        4,
+                        0xffffffffffffffff,
+                        0xbeef,
+                        0xffffffffffffcafe,
+                ]));
+
+                // push32, push32s
+                assert_eq!(trace[6].stack, val_vec(&[
+                        4,
+                        0xffffffffffffffff,
+                        0xbeef,
+                        0xffffffffffffcafe,
+                        0xdeed,
+                        0xffffffffdeadbeef,
+                ]));
+
+                // push64
+                assert_eq!(trace[7].stack, val_vec(&[
+                        4,
+                        0xffffffffffffffff,
+                        0xbeef,
+                        0xffffffffffffcafe,
+                        0xdeed,
+                        0xffffffffdeadbeef,
+                        0xdeadbeefcafeface,
+                ]));
+
+                // swap
+                assert_eq!(trace[8].stack, val_vec(&[
+                        4,
+                        0xffffffffffffffff,
+                        0xbeef,
+                        0xffffffffffffcafe,
+                        0xdeed,
+                        0xdeadbeefcafeface,
+                        0xffffffffdeadbeef,
+                ]));
+
+                // swap, dup0
+                assert_eq!(trace[10].stack, val_vec(&[
+                        4,
+                        0xffffffffffffffff,
+                        0xbeef,
+                        0xffffffffffffcafe,
+                        0xdeed,
+                        0xffffffffdeadbeef,
+                        0xdeadbeefcafeface,
+                        0xdeadbeefcafeface,
+                ]));
+
+                // pop, dup1
+                assert_eq!(trace[12].stack, val_vec(&[
+                        4,
+                        0xffffffffffffffff,
+                        0xbeef,
+                        0xffffffffffffcafe,
+                        0xdeed,
+                        0xffffffffdeadbeef,
+                        0xdeadbeefcafeface,
+                        0xffffffffdeadbeef,
+                ]));
+
+                // pop, dup2
+                assert_eq!(trace[14].stack, val_vec(&[
+                        4,
+                        0xffffffffffffffff,
+                        0xbeef,
+                        0xffffffffffffcafe,
+                        0xdeed,
+                        0xffffffffdeadbeef,
+                        0xdeadbeefcafeface,
+                        0xdeed,
+                ]));
+
+                // pop, dup3
+                assert_eq!(trace[16].stack, val_vec(&[
+                        4,
+                        0xffffffffffffffff,
+                        0xbeef,
+                        0xffffffffffffcafe,
+                        0xdeed,
+                        0xffffffffdeadbeef,
+                        0xdeadbeefcafeface,
+                        0xffffffffffffcafe,
+                ]));
+            },
+        );
+    }
+
+    #[test]
+    fn arithmetic() {
+        #[rustfmt::skip]
+        test_program(
+            &[
+                // tr 0
+                PUSH8, 2,
+                PUSH8, 6,
+                ADD,
+
+                // tr 3
+                POP,
+                PUSH8, 12,
+                PUSH8, 5,
+                SUB,
+
+                // tr 7
+                POP,
+                PUSH8, 7,
+                PUSH8, 6,
+                MUL,
+
+                // tr 11
+                POP,
+                PUSH8, 17,
+                PUSH8, 8,
+                MOD,
+
+                // tr 15
+                POP,
+                PUSH8, 88,
+                PUSH8, 11,
+                DIV,
+
+                // tr 19
+                POP,
+                PUSH8S, -20_i8 as u8,
+                PUSH8, 5,
+                DIVS,
+
+                // tr 23
+            ],
+            "",
+            |summary, _| {
+                let trace = summary.trace.as_ref().unwrap();
+
+                // 2 + 6
+                assert_eq!(trace[3].stack, val_vec(&[8]));
+
+                // 12 - 5
+                assert_eq!(trace[7].stack, val_vec(&[7]));
+
+                // 7 * 6
+                assert_eq!(trace[11].stack, val_vec(&[42]));
+
+                // 17 % 8
+                assert_eq!(trace[15].stack, val_vec(&[1]));
+
+                // 88 / 11
+                assert_eq!(trace[19].stack, val_vec(&[8]));
+
+                // -20 / 5
+                assert_eq!(summary.stack, val_vec(&[-4_i64 as u64]));
+            },
+        );
+    }
+
+    // TODO: other instructions, and runtime errors
 }
