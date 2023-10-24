@@ -169,7 +169,7 @@
 
 - **`add`** Integer addition
 
-  **Pop:** Integers A, B
+  **Pop:** Integers B, A
 
   **Push:** A + B
 
@@ -177,7 +177,7 @@
 
 - **`sub`** Integer subtraction
 
-  **Pop:** Integers A, B
+  **Pop:** Integers B, A
 
   **Push:** A - B
 
@@ -185,7 +185,7 @@
 
 - **`mul`** Integer multiplication
 
-  **Pop:** Integers A, B
+  **Pop:** Integers B, A
 
   **Push:** A \* B
 
@@ -193,7 +193,7 @@
 
 - **`div` `divs`** Integer division
 
-  **Pop:** Integers A, B
+  **Pop:** Integers B, A
 
   **Push:** A / B (truncating towards zero)
 
@@ -203,7 +203,7 @@
 
 - **`mod`** Integer modulo
 
-  **Pop:** Unsigned integers A, B
+  **Pop:** Unsigned integers B, A
 
   **Push:** A mod B
 
@@ -213,7 +213,7 @@
 
 - **`gt` `gts`** Greater-than comparison
 
-  **Pop:** Integers A, B
+  **Pop:** Integers B, A
 
   **Push:** 1 if A < B, 0 otherwise
 
@@ -221,7 +221,7 @@
 
 - **`lt` `lts`** Less-than comparison
 
-  **Pop:** Integers A, B
+  **Pop:** Integers B, A
 
   **Push:** 1 if A > B, 0 otherwise
 
@@ -229,7 +229,7 @@
 
 - **`ge` `ges`** Greater-or-equal comparison
 
-  **Pop:** Integers A, B
+  **Pop:** Integers B, A
 
   **Push:** 1 if A >= B, 0 otherwise
 
@@ -237,7 +237,7 @@
 
 - **`le` `les`** Less-or-equal comparison
 
-  **Pop:** Integers A, B
+  **Pop:** Integers B, A
 
   **Push:** 1 if A <= B, 0 otherwise
 
@@ -245,7 +245,7 @@
 
 - **`eq`** Equality comparison
 
-  **Pop:** Values A, B
+  **Pop:** Values B, A
 
   **Push:** 1 if A is bitwise equal to B, 0 otherwise.
 
@@ -253,19 +253,19 @@
 
 - **`and`** Bitwise AND
 
-  **Pop:** Values A, B
+  **Pop:** Values B, A
 
   **Push:** The bitwise AND of A and B.
 
 - **`or`** Bitwise OR
 
-  **Pop:** Values A, B
+  **Pop:** Values B, A
 
   **Push:** The bitwise OR of A and B.
 
 - **`xor`** Bitwise XOR
 
-  **Pop:** Values A, B
+  **Pop:** Values B, A
 
   **Push:** The bitwise XOR of A and B.
 

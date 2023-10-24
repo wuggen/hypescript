@@ -1,5 +1,7 @@
 //! Stack and variable values.
 
+use std::fmt::{self, Display, Formatter, LowerHex};
+
 use crate::error::*;
 
 use hypescript_util::array_from_slice;
@@ -10,6 +12,22 @@ use hypescript_util::array_from_slice;
 /// various types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Value(u64);
+
+impl Display for Value {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        if f.sign_minus() {
+            Display::fmt(&(self.0 as i64), f)
+        } else {
+            Display::fmt(&self.0, f)
+        }
+    }
+}
+
+impl LowerHex for Value {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{:016x}", self.0)
+    }
+}
 
 macro_rules! as_method {
     ($(($method_name:ident $type:ident))*) => {
@@ -124,10 +142,9 @@ impl Value {
     /// and program counter set to zero.
     pub fn div_unsigned(self, rhs: Self) -> Result<Self> {
         Ok(Self::from_u64(
-            self.as_u64().checked_div(rhs.as_u64()).ok_or(Error {
-                kind: ErrorKind::DivideByZero,
-                pc: 0,
-            })?,
+            self.as_u64()
+                .checked_div(rhs.as_u64())
+                .ok_or(Error::from(ErrorKind::DivideByZero))?,
         ))
     }
 
@@ -139,10 +156,9 @@ impl Value {
     /// and program counter set to zero.
     pub fn div_signed(self, rhs: Self) -> Result<Self> {
         Ok(Self::from_i64(
-            self.as_i64().checked_div(rhs.as_i64()).ok_or(Error {
-                kind: ErrorKind::DivideByZero,
-                pc: 0,
-            })?,
+            self.as_i64()
+                .checked_div(rhs.as_i64())
+                .ok_or(Error::from(ErrorKind::DivideByZero))?,
         ))
     }
 
@@ -154,10 +170,9 @@ impl Value {
     /// and program counter set to zero.
     pub fn mod_(self, rhs: Self) -> Result<Self> {
         Ok(Self::from_u64(
-            self.as_u64().checked_rem(rhs.as_u64()).ok_or(Error {
-                kind: ErrorKind::DivideByZero,
-                pc: 0,
-            })?,
+            self.as_u64()
+                .checked_rem(rhs.as_u64())
+                .ok_or(Error::from(ErrorKind::DivideByZero))?,
         ))
     }
 
@@ -377,7 +392,7 @@ mod test {
             Value::from_u64(1526)
                 .div_unsigned(Value::from_u64(0))
                 .unwrap_err()
-                .kind(),
+                .kind,
             ErrorKind::DivideByZero,
         );
     }
@@ -399,7 +414,7 @@ mod test {
             Value::from_i64(-162456)
                 .div_signed(Value::from_i64(0))
                 .unwrap_err()
-                .kind(),
+                .kind,
             ErrorKind::DivideByZero
         );
     }
@@ -419,7 +434,7 @@ mod test {
             Value::from_u64(1234)
                 .mod_(Value::from_u64(0))
                 .unwrap_err()
-                .kind(),
+                .kind,
             ErrorKind::DivideByZero
         );
     }

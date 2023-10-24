@@ -8,6 +8,7 @@ pub mod consts;
 
 use consts::*;
 use hypescript_util::array_from_slice;
+use std::fmt::{self, Display, Formatter};
 use std::io;
 
 /// Opcodes recognized by the NilScript VM.
@@ -179,6 +180,57 @@ impl Opcode {
         }
     }
 
+    /// Get the lowercase mnemonic of this opcode.
+    pub fn mnemonic(self) -> &'static str {
+        match self {
+            Self::VarSt => "varst",
+            Self::VarLd => "varld",
+            Self::VarRes => "varres",
+            Self::VarDisc => "vardisc",
+            Self::NumVars => "numvars",
+            Self::Push8 => "push8",
+            Self::Push8S => "push8s",
+            Self::Push16 => "push16",
+            Self::Push16S => "push16s",
+            Self::Push32 => "push32",
+            Self::Push32S => "push32s",
+            Self::Push64 => "push64",
+            Self::Dup0 => "dup0",
+            Self::Dup1 => "dup1",
+            Self::Dup2 => "dup2",
+            Self::Dup3 => "dup3",
+            Self::Pop => "pop",
+            Self::Swap => "swap",
+            Self::Add => "add",
+            Self::Sub => "sub",
+            Self::Mul => "mul",
+            Self::Mod => "mod",
+            Self::Div => "div",
+            Self::DivS => "divs",
+            Self::Gt => "gt",
+            Self::GtS => "gts",
+            Self::Lt => "lt",
+            Self::LtS => "lts",
+            Self::Ge => "ge",
+            Self::GeS => "ges",
+            Self::Le => "le",
+            Self::LeS => "les",
+            Self::Eq => "eq",
+            Self::And => "and",
+            Self::Or => "or",
+            Self::Xor => "xor",
+            Self::Not => "not",
+            Self::Inv => "inv",
+            Self::Jump => "jump",
+            Self::JCond => "jcond",
+            Self::Read => "read",
+            Self::ReadS => "reads",
+            Self::Print => "print",
+            Self::PrintS => "prints",
+            Self::Halt => "halt",
+        }
+    }
+
     /// Get the number of bytes in the inline literal expected by this opcode.
     ///
     /// This will be 0, 1, 2, 4, or 8.
@@ -230,6 +282,20 @@ impl TryFrom<u8> for Opcode {
 pub struct Instruction {
     pub opcode: Opcode,
     pub literal: u64,
+}
+
+impl Display for Instruction {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.opcode.mnemonic())?;
+        match self.opcode.literal_len() {
+            0 => Ok(()),
+            1 => write!(f, " 0x{:02x}", self.literal as u8),
+            2 => write!(f, " 0x{:04x}", self.literal as u16),
+            4 => write!(f, " 0x{:08x}", self.literal as u32),
+            8 => write!(f, " 0x{:016x}", self.literal),
+            _ => unreachable!(),
+        }
+    }
 }
 
 impl Instruction {
