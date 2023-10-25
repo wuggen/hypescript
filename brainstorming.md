@@ -414,3 +414,68 @@
 | 0xfd                 | prints      |
 | 0xfe                 | [reserved]  |
 | 0xff                 | halt        |
+
+## Language definitions
+
+### Abstract syntax
+
+```
+T ::=               Types
+    Uint            Unsigned int
+    Sint            Signed int
+    UnkInt          Unresolved int
+    Bool            Boolean
+    Unit            Unit
+
+t ::=               Terms
+    t t*            Sequence
+    { t }           Block
+    v               Variable ref
+    lit             Literal values
+    t binop t       Binary operators
+    unop t          Unary operators
+    T v;            Declaration
+    v = t;          Assignment
+    T v = t;        DeclAssign
+    print t;        Print
+    break;          Break loop
+    if t { t } (else if t { t })* (else { t })?     If else chain
+    while t { t }   While loop
+
+lit ::=             Literal values
+    true            Literal true
+    false           Literal false
+    integer         Positive integer
+    - integer       Negative integer
+
+binop ::=           Binary operators
+    arithop         Arithmetic operators
+    compop          Comparison operators
+    logop           Logical operators
+
+arithop ::=         Arithmetic operators
+    +               Addition
+    -               Subtraction
+    *               Multiplication
+    /               Division
+    %               Modulo
+    &               Bitwise AND
+    |               Bitwise OR
+    ^               Bitwise XOR
+
+compop ::=          Comparison operators
+    <               Less than
+    <=              Less or equal
+    >               Greater than
+    >=              Greater or equal
+    ==              Equal
+    !=              Not equal
+
+logop ::=           Logical operators
+    &&              Logical AND
+    ||              Logical OR
+
+unop ::=            Unary operators
+    ~               Bitwise NOT
+    !               Logical NOT
+```

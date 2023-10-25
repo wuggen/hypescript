@@ -2,6 +2,7 @@
 members = [
   "hype",
   "hypescript-bytecode",
+  "hypescript-lang",
   "hypescript-util",
   "hypescript-vm",
 ]
