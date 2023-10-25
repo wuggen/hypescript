@@ -864,5 +864,26 @@ mod test {
         );
     }
 
+    #[test]
+    fn input() {
+        #[rustfmt::skip]
+        test_program(
+            &[
+                READ,
+                READS,
+                READS,
+                READ,
+            ],
+            "12 13\n-145   \t\t     78", // Some random-ish assortments of whitespace in there, just to test
+            |summary, _| {
+                let trace = summary.trace.as_ref().unwrap();
+                assert_eq!(trace[1].stack, val_vec(&[12]));
+                assert_eq!(trace[2].stack, val_vec(&[12, 13]));
+                assert_eq!(trace[3].stack, val_vec(&[12, 13, -145_i64 as u64]));
+                assert_eq!(summary.stack, val_vec(&[12, 13, -145_i64 as u64, 78]));
+            }
+        );
+    }
+
     // TODO: other instructions, and runtime errors
 }
