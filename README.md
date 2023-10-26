@@ -8,12 +8,14 @@ This repository is organized as follows:
   allowing for configurable code execution.
 - [`hypescript_bytecode`](hypescript_bytecode) A library for encoding, decoding, and
   manipulating HypeScript VM bytecode.
-- [`hype`](hype) A standalone command-line interpreter for the HypeScript VM.
+- [`hype`](hype) A standalone command-line interpreter for the HypeScript bytecode
+  programs.
 - [`hypescript-util`](hypescript-util) A (very) small miscellaneous utility library used
   by several other crates in this repository.
 
 To build all crates, a simple `cargo build` should suffice.
 
 Documentation on the VM architecture and semantics can be found in
-[vm-architecture.md](vm-architecture.md). Brief usage notes on the `hype` tool can be
-obtained by passing it the `--help` flag.
+[vm-architecture.md](vm-architecture.md), and documentation on the language syntax and
+semantics can be found in [lang-overview.md](lang-overview.md) Brief usage notes on the
+`hype` tool can be obtained by passing it the `--help` flag.
