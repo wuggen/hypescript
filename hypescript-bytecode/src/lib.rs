@@ -298,7 +298,17 @@ impl Display for Instruction {
     }
 }
 
+impl From<Opcode> for Instruction {
+    fn from(value: Opcode) -> Self {
+        Self::new(value, 0)
+    }
+}
+
 impl Instruction {
+    pub fn from_opcode(opcode: Opcode) -> Self {
+        Self::new(opcode, 0)
+    }
+
     /// Create a new `Instruction`.
     pub fn new(opcode: Opcode, literal: u64) -> Self {
         Self { opcode, literal }
@@ -359,6 +369,46 @@ impl Instruction {
         }
 
         Ok(())
+    }
+
+    /// Get the number of bytes in the encoded form of this instruction.
+    pub fn encoded_len(&self) -> usize {
+        1 + self.opcode.literal_len()
+    }
+
+    /// Get the combined encoded length of a series of instructions.
+    pub fn combined_len(instructions: &[Self]) -> usize {
+        instructions.iter().map(|inst| inst.encoded_len()).sum()
+    }
+
+    /// Construct an unsigned push instruction of optimal size for the value.
+    pub fn optimal_push(value: u64) -> Self {
+        let opcode = if value <= u8::MAX as u64 {
+            Opcode::Push8
+        } else if value <= u16::MAX as u64 {
+            Opcode::Push16
+        } else if value <= u32::MAX as u64 {
+            Opcode::Push32
+        } else {
+            Opcode::Push64
+        };
+
+        Self::new(opcode, value)
+    }
+
+    /// Construct a signed push instruction of optimal size for the value.
+    pub fn optimal_pushs(value: i64) -> Self {
+        let opcode = if i8::MIN as i64 <= value && value <= i8::MAX as i64 {
+            Opcode::Push8S
+        } else if i16::MIN as i64 <= value && value <= i16::MAX as i64 {
+            Opcode::Push16S
+        } else if i32::MIN as i64 <= value && value <= i32::MAX as i64 {
+            Opcode::Push32S
+        } else {
+            Opcode::Push64
+        };
+
+        Self::new(opcode, value as u64)
     }
 }
 
