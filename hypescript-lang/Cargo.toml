@@ -8,3 +8,6 @@ edition = "2021"
 [dependencies]
 hypescript-bytecode = { path = "../hypescript-bytecode" }
 thiserror = "1.0.50"
+
+[dev-dependencies]
+hypescript-vm = { path = "../hypescript-vm" }

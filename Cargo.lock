@@ -82,6 +82,7 @@ name = "hypescript-lang"
 version = "0.1.0"
 dependencies = [
  "hypescript-bytecode",
+ "hypescript-vm",
  "thiserror",
 ]
 

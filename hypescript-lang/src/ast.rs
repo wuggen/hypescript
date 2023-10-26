@@ -68,10 +68,15 @@ pub enum Ast {
 }
 
 impl Ast {
+    /// Create a variable reference node.
+    pub fn var(var: impl Into<String>) -> Self {
+        Self::Var(var.into())
+    }
+
     /// Create a variable assignment node.
-    pub fn assign(var: String, value: Self) -> Self {
+    pub fn assign(var: impl Into<String>, value: Self) -> Self {
         Self::Assign {
-            var,
+            var: var.into(),
             value: Box::new(value),
         }
     }
@@ -100,6 +105,11 @@ impl Ast {
             sym,
             operand: Box::new(operand),
         }
+    }
+
+    /// Create a print node.
+    pub fn print(val: Self) -> Self {
+        Self::Print(Box::new(val))
     }
 }
 

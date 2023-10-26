@@ -412,6 +412,20 @@ impl Instruction {
     }
 }
 
+pub fn write_instructions<W: io::Write>(stream: &mut W, instrs: &[Instruction]) -> io::Result<()> {
+    for instr in instrs {
+        instr.encode_to_stream(stream)?;
+    }
+
+    Ok(())
+}
+
+pub fn instructions_to_vec(instrs: &[Instruction]) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    write_instructions(&mut bytes, instrs).unwrap();
+    bytes
+}
+
 /// Error returned by [`Instruction`] encoding and decoding.
 #[derive(Debug, thiserror::Error)]
 pub enum DecodeError {

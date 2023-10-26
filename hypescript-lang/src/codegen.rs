@@ -76,11 +76,7 @@ fn translate_one(
     ast: &Ast,
 ) -> Result<(), CodegenError> {
     match ast {
-        Ast::Block(seq) => {
-            ctx.in_new_scope(|ctx| {
-                translate_sequence(ctx, instructions, seq)
-            })
-        }
+        Ast::Block(seq) => ctx.in_new_scope(|ctx| translate_sequence(ctx, instructions, seq)),
 
         Ast::Var(var) => {
             let idx = ctx
@@ -121,14 +117,10 @@ fn translate_one(
             translate_one(ctx, instructions, cond)?;
 
             let mut if_instrs = Vec::new();
-            ctx.in_new_scope(|ctx| {
-                translate_sequence(ctx, &mut if_instrs, body)
-            })?;
+            ctx.in_new_scope(|ctx| translate_sequence(ctx, &mut if_instrs, body))?;
 
             let mut else_instrs = Vec::new();
-            ctx.in_new_scope(|ctx| {
-                translate_sequence(ctx, &mut else_instrs, else_body)
-            })?;
+            ctx.in_new_scope(|ctx| translate_sequence(ctx, &mut else_instrs, else_body))?;
 
             let else_body_len = Instruction::combined_len(&else_instrs);
             if else_body_len > 0 {
@@ -146,6 +138,7 @@ fn translate_one(
                 Instruction::optimal_pushs(if_len as i64),
                 Instruction::from(Opcode::JCond),
             ]);
+            instructions.append(&mut if_instrs);
 
             Ok(())
         }
@@ -197,5 +190,169 @@ fn append_unop_instrs(instrs: &mut Vec<Instruction>, op: UnopSym) {
     match op {
         UnopSym::BitNot => instrs.push(Instruction::from(Opcode::Inv)),
         UnopSym::LogNot => instrs.push(Instruction::from(Opcode::Not)),
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use hypescript_bytecode::instructions_to_vec;
+    use hypescript_vm::ExecutionContext;
+
+    use super::*;
+
+    #[test]
+    fn example1() {
+        // Example 1 from the assignment:
+        //
+        // a = 5;
+        // b = 4 + a;
+        // print a;
+        // print b;
+
+        let program = &[
+            Ast::assign("a", Ast::Int(5)),
+            Ast::assign("b", Ast::plus(Ast::Int(4), Ast::var("a"))),
+            Ast::print(Ast::var("a")),
+            Ast::print(Ast::var("b")),
+        ];
+
+        let instructions = translate(program).expect("Failed to translate AST");
+
+        use Opcode::*;
+        let expected = &[
+            // Preamble, reserve variables
+            Instruction::new(Push8, 2),
+            Instruction::from(VarRes),
+            // a = 5
+            Instruction::new(Push8, 5),
+            Instruction::new(Push8, 0),
+            Instruction::from(VarSt),
+            // b = 4 + a
+            Instruction::new(Push8, 4),
+            Instruction::new(Push8, 0),
+            Instruction::from(VarLd),
+            Instruction::from(Add),
+            Instruction::new(Push8, 1),
+            Instruction::from(VarSt),
+            // print a
+            Instruction::new(Push8, 0),
+            Instruction::from(VarLd),
+            Instruction::from(Print),
+            // print b
+            Instruction::new(Push8, 1),
+            Instruction::from(VarLd),
+            Instruction::from(Print),
+        ];
+
+        assert_eq!(expected, instructions.as_slice());
+
+        let bytes = instructions_to_vec(&instructions);
+        let mut output = Vec::new();
+        let _summary = ExecutionContext::new(&bytes)
+            .with_output_stream(&mut output)
+            .with_trace()
+            .run()
+            .expect("Runtime error");
+
+        let output = String::from_utf8(output).unwrap();
+        assert_eq!(output, "5\n9\n");
+    }
+
+    #[test]
+    fn example2() {
+        // Example 2 from the assignment:
+        //
+        // a = 1;
+        // b = 0;
+        // if b == a {
+        //     print 0;
+        // }
+        // if a > b {
+        //     print 2;
+        // }
+        // print a + b;
+
+        let program = &[
+            Ast::assign("a", Ast::Int(1)),
+            Ast::assign("b", Ast::Int(0)),
+            Ast::if_cond(
+                Ast::eq(Ast::var("b"), Ast::var("a")),
+                vec![Ast::print(Ast::Int(0))],
+                vec![],
+            ),
+            Ast::if_cond(
+                Ast::greater(Ast::var("a"), Ast::var("b")),
+                vec![Ast::print(Ast::Int(2))],
+                vec![],
+            ),
+            Ast::print(Ast::plus(Ast::var("a"), Ast::var("b"))),
+        ];
+
+        let instructions = translate(program).expect("Failed to translate AST");
+
+        use Opcode::*;
+        let expected = &[
+            // Preamble: reserve vars
+            Instruction::new(Push8, 2),
+            Instruction::from(VarRes),
+            // a = 1
+            Instruction::new(Push8, 1),
+            Instruction::new(Push8, 0),
+            Instruction::from(VarSt),
+            // b = 0
+            Instruction::new(Push8, 0),
+            Instruction::new(Push8, 1),
+            Instruction::from(VarSt),
+            // if b == a
+            Instruction::new(Push8, 1),
+            Instruction::from(VarLd),
+            Instruction::new(Push8, 0),
+            Instruction::from(VarLd),
+            Instruction::from(Eq),
+            Instruction::from(Not),
+            Instruction::new(Push8S, 3),
+            Instruction::from(JCond),
+            // { print 0 }
+            Instruction::new(Push8, 0),
+            Instruction::from(Print),
+            // if a > b
+            Instruction::new(Push8, 0),
+            Instruction::from(VarLd),
+            Instruction::new(Push8, 1),
+            Instruction::from(VarLd),
+            Instruction::from(Gt),
+            Instruction::from(Not),
+            Instruction::new(Push8S, 3),
+            Instruction::from(JCond),
+            // { print 2 }
+            Instruction::new(Push8, 2),
+            Instruction::from(Print),
+            // print a + b
+            Instruction::new(Push8, 0),
+            Instruction::from(VarLd),
+            Instruction::new(Push8, 1),
+            Instruction::from(VarLd),
+            Instruction::from(Add),
+            Instruction::from(Print),
+        ];
+
+        assert_eq!(
+            expected,
+            instructions.as_slice(),
+            "Expected: {:#?}\nActual: {:#?}",
+            expected,
+            instructions
+        );
+
+        let bytes = instructions_to_vec(&instructions);
+        let mut output = Vec::<u8>::new();
+        let _summary = ExecutionContext::new(&bytes)
+            .with_output_stream(&mut output)
+            .with_trace()
+            .run()
+            .expect("Runtime error");
+
+        let output = String::from_utf8(output).unwrap();
+        assert_eq!(output, "2\n1\n");
     }
 }
