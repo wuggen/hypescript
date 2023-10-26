@@ -4,20 +4,32 @@ use hypescript_bytecode::{Instruction, Opcode};
 
 use crate::ast::{Ast, BinopSym, UnopSym};
 
+/// Errors in code generation.
 #[derive(Debug, thiserror::Error)]
 pub enum CodegenError {
     #[error("Undeclared variable `{0}`")]
     UndeclaredVariable(String),
 }
 
+/// Variable binding context for codegen.
+///
+/// This struct tracks existing declared variables, as well as the maximum number of variables in
+/// scope at any point in the program.
 #[derive(Debug, Clone, Default)]
-pub struct Context {
+struct Context {
     vars: Vec<String>,
     max_vars: usize,
 }
 
 impl Context {
-    pub fn assign_var(&mut self, var: &str) -> usize {
+    /// Look up or create a new variable.
+    ///
+    /// If the given variable name is not currently in scope, it will be added to the context as a
+    /// new variable. Regardless, return the index of the variable name.
+    ///
+    /// This is useful when a value is assigned to a variable, to declare it if it has not already
+    /// been declared.
+    fn assign_var(&mut self, var: &str) -> usize {
         self.index_of(var).unwrap_or_else(|| {
             self.vars.push(var.into());
             self.max_vars += 1;
@@ -25,26 +37,33 @@ impl Context {
         })
     }
 
-    pub fn index_of(&self, var: &str) -> Option<usize> {
+    /// Look up a variable.
+    ///
+    /// If the given variable name is in scope, returns its index. Otherwise returns `None`.
+    fn index_of(&self, var: &str) -> Option<usize> {
         self.vars.iter().rposition(|s| s == var)
     }
 
-    pub fn update_max_vars(&mut self, inner_ctx: &Context) {
-        self.max_vars = self.max_vars.max(inner_ctx.max_vars);
-    }
-
-    pub fn in_new_scope<F, T>(&mut self, op: F) -> T
+    /// Perform an action in a new program scope.
+    ///
+    /// This will clone the current context, and pass the clone to the given closure. Thus, any
+    /// variables added to the context within the closure will be deallocated once this function
+    /// returns.
+    fn in_new_scope<F, T>(&mut self, op: F) -> T
     where
         F: FnOnce(&mut Context) -> T,
     {
         let mut inner_ctx = self.clone();
         let res = op(&mut inner_ctx);
-        self.update_max_vars(&inner_ctx);
+        self.max_vars = self.max_vars.max(inner_ctx.max_vars);
         res
     }
 }
 
+/// Translate an AST into a vec of instructions.
 pub fn translate(program: &[Ast]) -> Result<Vec<Instruction>, CodegenError> {
+    // Set up the preamble; we will change exactly how many variables to reserve after the rest of
+    // the program is translated
     let mut instructions = vec![
         Instruction::from(Opcode::Push8),
         Instruction::from(Opcode::VarRes),
@@ -54,10 +73,12 @@ pub fn translate(program: &[Ast]) -> Result<Vec<Instruction>, CodegenError> {
 
     translate_sequence(&mut ctx, &mut instructions, program)?;
 
+    // Update the preamble
     instructions[0] = Instruction::optimal_push(ctx.max_vars as u64);
     Ok(instructions)
 }
 
+/// Translate a sequence of instructions.
 fn translate_sequence(
     ctx: &mut Context,
     instructions: &mut Vec<Instruction>,
@@ -70,6 +91,7 @@ fn translate_sequence(
     Ok(())
 }
 
+/// Translate a single AST node.
 fn translate_one(
     ctx: &mut Context,
     instructions: &mut Vec<Instruction>,
@@ -101,6 +123,7 @@ fn translate_one(
 
         Ast::Assign { var, value } => {
             translate_one(ctx, instructions, value)?;
+
             let idx = ctx.assign_var(var);
             instructions.extend_from_slice(&[
                 Instruction::optimal_push(idx as u64),
@@ -116,6 +139,8 @@ fn translate_one(
         } => {
             translate_one(ctx, instructions, cond)?;
 
+            // We translate the if and else blocks into separate vectors, so that we can easily get
+            // the jump distances required.
             let mut if_instrs = Vec::new();
             ctx.in_new_scope(|ctx| translate_sequence(ctx, &mut if_instrs, body))?;
 
@@ -123,22 +148,27 @@ fn translate_one(
             ctx.in_new_scope(|ctx| translate_sequence(ctx, &mut else_instrs, else_body))?;
 
             let else_body_len = Instruction::combined_len(&else_instrs);
+
+            // If there is a non-empty else clause, append instructions to the if clause to jump
+            // over it.
             if else_body_len > 0 {
                 if_instrs.extend_from_slice(&[
                     Instruction::optimal_pushs(else_body_len as i64),
                     Instruction::from(Opcode::Jump),
                 ]);
 
-                if_instrs.append(&mut else_instrs);
             }
 
-            let if_len = Instruction::combined_len(&if_instrs);
+            let if_body_len = Instruction::combined_len(&if_instrs);
+
             instructions.extend_from_slice(&[
                 Instruction::from(Opcode::Not),
-                Instruction::optimal_pushs(if_len as i64),
+                Instruction::optimal_pushs(if_body_len as i64),
                 Instruction::from(Opcode::JCond),
             ]);
+
             instructions.append(&mut if_instrs);
+            instructions.append(&mut else_instrs);
 
             Ok(())
         }
@@ -164,6 +194,10 @@ fn translate_one(
     }
 }
 
+/// Append instructions to the given vec implementing the given binop.
+///
+/// Each binary operator in the language has a single corresponding opcode, except for `!=`, which
+/// requires two.
 fn append_binop_instrs(instrs: &mut Vec<Instruction>, op: BinopSym) {
     match op {
         BinopSym::Plus => instrs.push(Instruction::from(Opcode::Add)),
@@ -186,6 +220,7 @@ fn append_binop_instrs(instrs: &mut Vec<Instruction>, op: BinopSym) {
     };
 }
 
+/// Append instructions to the given vec implementing the given unop.
 fn append_unop_instrs(instrs: &mut Vec<Instruction>, op: UnopSym) {
     match op {
         UnopSym::BitNot => instrs.push(Instruction::from(Opcode::Inv)),
