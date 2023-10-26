@@ -32,7 +32,7 @@ impl Context {
     fn assign_var(&mut self, var: &str) -> usize {
         self.index_of(var).unwrap_or_else(|| {
             self.vars.push(var.into());
-            self.max_vars += 1;
+            self.max_vars = self.max_vars.max(self.vars.len());
             self.vars.len() - 1
         })
     }
@@ -156,7 +156,6 @@ fn translate_one(
                     Instruction::optimal_pushs(else_body_len as i64),
                     Instruction::from(Opcode::Jump),
                 ]);
-
             }
 
             let if_body_len = Instruction::combined_len(&if_instrs);
@@ -235,6 +234,8 @@ mod test {
 
     use super::*;
 
+    use Opcode::*;
+
     #[test]
     fn example1() {
         // Example 1 from the assignment:
@@ -253,7 +254,6 @@ mod test {
 
         let instructions = translate(program).expect("Failed to translate AST");
 
-        use Opcode::*;
         let expected = &[
             // Preamble, reserve variables
             Instruction::new(Push8, 2),
@@ -325,7 +325,6 @@ mod test {
 
         let instructions = translate(program).expect("Failed to translate AST");
 
-        use Opcode::*;
         let expected = &[
             // Preamble: reserve vars
             Instruction::new(Push8, 2),
@@ -389,5 +388,206 @@ mod test {
 
         let output = String::from_utf8(output).unwrap();
         assert_eq!(output, "2\n1\n");
+    }
+
+    #[test]
+    fn simple_else_clause() {
+        // a = 4
+        // if a < 3 {
+        //     print 1
+        // } else {
+        //     print 0
+        // }
+
+        let program = &[
+            Ast::assign("a", Ast::Int(4)),
+            Ast::if_cond(
+                Ast::less(Ast::var("a"), Ast::Int(3)),
+                vec![Ast::print(Ast::Int(1))],
+                vec![Ast::print(Ast::Int(0))],
+            ),
+        ];
+
+        let instructions = translate(program).expect("Failed to translate AST");
+
+        let expected = &[
+            // Preamble
+            Instruction::new(Push8, 1),
+            Instruction::from(VarRes),
+            // a = 4
+            Instruction::new(Push8, 4),
+            Instruction::new(Push8, 0),
+            Instruction::from(VarSt),
+            // if a < 3
+            Instruction::new(Push8, 0),
+            Instruction::from(VarLd),
+            Instruction::new(Push8, 3),
+            Instruction::from(Lt),
+            Instruction::from(Not),
+            Instruction::new(Push8S, 6),
+            Instruction::from(JCond),
+            // print 1
+            Instruction::new(Push8, 1),
+            Instruction::from(Print),
+            Instruction::new(Push8S, 3),
+            Instruction::from(Jump),
+            // else { print 0 }
+            Instruction::new(Push8, 0),
+            Instruction::from(Print),
+        ];
+
+        assert_eq!(
+            expected,
+            instructions.as_slice(),
+            "Expected: {:#?}\nActual: {:#?}",
+            expected,
+            instructions
+        );
+
+        let bytes = instructions_to_vec(&instructions);
+        let mut output = Vec::<u8>::new();
+        let _summary = ExecutionContext::new(&bytes)
+            .with_output_stream(&mut output)
+            .with_trace()
+            .run()
+            .expect("Runtime error");
+
+        let output = String::from_utf8(output).unwrap();
+        assert_eq!(output, "0\n");
+    }
+
+    #[test]
+    fn else_if_clause() {
+        // a = 4
+        // if a < 2 {
+        //     print 2
+        // } else if a < 3 {
+        //     print 3
+        // }
+
+        let program = &[
+            Ast::assign("a", Ast::Int(4)),
+            Ast::if_cond(
+                Ast::less(Ast::var("a"), Ast::Int(2)),
+                vec![Ast::print(Ast::Int(2))],
+                vec![Ast::if_cond(
+                    Ast::less(Ast::var("a"), Ast::Int(3)),
+                    vec![Ast::print(Ast::Int(3))],
+                    vec![],
+                )],
+            ),
+        ];
+
+        let instructions = translate(program).expect("Failed to translate AST");
+
+        let expected = &[
+            Instruction::new(Push8, 1),
+            Instruction::from(VarRes),
+            // a = 4
+            Instruction::new(Push8, 4),
+            Instruction::new(Push8, 0),
+            Instruction::from(VarSt),
+            // if a < 2 {
+            Instruction::new(Push8, 0),
+            Instruction::from(VarLd),
+            Instruction::new(Push8, 2),
+            Instruction::from(Lt),
+            Instruction::from(Not),
+            Instruction::new(Push8S, 6),
+            Instruction::from(JCond),
+            //     print 2
+            Instruction::new(Push8, 2),
+            Instruction::from(Print),
+            Instruction::new(Push8S, 13),
+            Instruction::from(Jump),
+            // } else if a < 3 {
+            Instruction::new(Push8, 0),
+            Instruction::from(VarLd),
+            Instruction::new(Push8, 3),
+            Instruction::from(Lt),
+            Instruction::from(Not),
+            Instruction::new(Push8S, 3),
+            Instruction::from(JCond),
+            //     print 3
+            Instruction::new(Push8, 3),
+            Instruction::from(Print),
+        ];
+
+        assert_eq!(
+            expected,
+            instructions.as_slice(),
+            "Expected: {:#?}\nActual: {:#?}",
+            expected,
+            instructions
+        );
+
+        let bytes = instructions_to_vec(&instructions);
+        let mut output = Vec::<u8>::new();
+        let _summary = ExecutionContext::new(&bytes)
+            .with_output_stream(&mut output)
+            .with_trace()
+            .run()
+            .expect("Runtime error");
+
+        assert!(output.is_empty());
+    }
+
+    #[test]
+    fn var_out_of_scope() {
+        // a = 4
+        // {
+        //     b = 3
+        // }
+        // a = a + b // Should trigger undeclared variable error
+
+        let program = &[
+            Ast::assign("a", Ast::Int(4)),
+            Ast::Block(vec![Ast::assign("b", Ast::Int(3))]),
+            Ast::assign("a", Ast::plus(Ast::var("a"), Ast::var("b"))),
+        ];
+
+        let err = translate(program).expect_err("Translation completed successfully");
+        assert!(matches!(err, CodegenError::UndeclaredVariable(varname) if varname == "b"));
+    }
+
+    #[test]
+    fn var_not_yet_declared() {
+        // a = b // Should trigger undeclared variable error
+        // b = 3
+
+        let program = &[
+            Ast::assign("a", Ast::var("b")),
+            Ast::assign("b", Ast::Int(3)),
+        ];
+
+        let err = translate(program).expect_err("Translation completed successfully");
+        assert!(matches!(err, CodegenError::UndeclaredVariable(name) if name == "b"));
+    }
+
+    #[test]
+    fn minimal_vars_reserved() {
+        // Three distinct variable names, but only a maximum of two in scope at any point. Preamble
+        // should only reserve two variables.
+        //
+        // a = 2
+        // {
+        //     b = 4
+        // }
+        // {
+        //     c = 8
+        // }
+
+        let program = &[
+            Ast::assign("a", Ast::Int(2)),
+            Ast::Block(vec![Ast::assign("b", Ast::Int(4))]),
+            Ast::Block(vec![Ast::assign("c", Ast::Int(8))]),
+        ];
+
+        let instructions = translate(program).expect("Codegen failed");
+
+        assert_eq!(
+            &instructions[0..2],
+            &[Instruction::new(Push8, 2), Instruction::from(VarRes)]
+        );
     }
 }
