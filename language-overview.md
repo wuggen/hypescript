@@ -184,10 +184,10 @@ The semantics of each operator can be summarized as follows:
 | `==`     | Integers or booleans | Boolean      | Equality comparison         |
 | `!=`     | Integers or booleans | Boolean      | Inequality comparison       |
 | `&`      | Integers or booleans | Operand type | Bitwise AND                 |
-| `|`      | Integers or booleans | Operand type | Bitwise OR                  |
+| `\|`     | Integers or booleans | Operand type | Bitwise OR                  |
 | `^`      | Integers or booleans | Operand type | Bitwise XOR                 |
 | `&&`     | Booleans             | Boolean      | Logical AND<sup>3</sup>     |
-| `||`     | Booleans             | Boolean      | Logical OR<sup>3</sup>      |
+| `\|\|`   | Booleans             | Boolean      | Logical OR<sup>3</sup>      |
 | `~`      | Integer              | Integer      | Bitwise NOT<sup>4</sup>     |
 | `!`      | Integer or boolean   | Boolean      | Logical NOT<sup>4</sup>     |
 
