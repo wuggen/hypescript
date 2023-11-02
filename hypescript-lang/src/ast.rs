@@ -1,5 +1,8 @@
 //! The HypeScript abstract syntax tree structure
 
+use std::fmt::{self, Display, Formatter};
+use std::str::FromStr;
+
 /// Binary operators
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BinopSym {
@@ -21,6 +24,55 @@ pub enum BinopSym {
     LogOr,
 }
 
+impl FromStr for BinopSym {
+    type Err = ParseOperatorError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "+" => Ok(Self::Plus),
+            "-" => Ok(Self::Minus),
+            "*" => Ok(Self::Mul),
+            "/" => Ok(Self::Div),
+            "%" => Ok(Self::Mod),
+            ">" => Ok(Self::Greater),
+            "<" => Ok(Self::Less),
+            ">=" => Ok(Self::GreaterEq),
+            "<=" => Ok(Self::LessEq),
+            "==" => Ok(Self::Eq),
+            "!=" => Ok(Self::NEq),
+            "&" => Ok(Self::BitAnd),
+            "|" => Ok(Self::BitOr),
+            "^" => Ok(Self::BitXor),
+            "&&" => Ok(Self::LogAnd),
+            "||" => Ok(Self::LogOr),
+            _ => Err(ParseOperatorError),
+        }
+    }
+}
+
+impl Display for BinopSym {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Plus => write!(f, "+"),
+            Self::Minus => write!(f, "-"),
+            Self::Mul => write!(f, "*"),
+            Self::Div => write!(f, "/"),
+            Self::Mod => write!(f, "%"),
+            Self::Greater => write!(f, ">"),
+            Self::Less => write!(f, "<"),
+            Self::GreaterEq => write!(f, ">="),
+            Self::LessEq => write!(f, "<="),
+            Self::Eq => write!(f, "=="),
+            Self::NEq => write!(f, "!="),
+            Self::BitAnd => write!(f, "&"),
+            Self::BitOr => write!(f, "|"),
+            Self::BitXor => write!(f, "^"),
+            Self::LogAnd => write!(f, "&&"),
+            Self::LogOr => write!(f, "||"),
+        }
+    }
+}
+
 /// Unary operators
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum UnopSym {
@@ -28,8 +80,21 @@ pub enum UnopSym {
     LogNot,
 }
 
+impl Display for UnopSym {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::BitNot => write!(f, "~"),
+            Self::LogNot => write!(f, "!"),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("failed to parse operator")]
+pub struct ParseOperatorError;
+
 /// The abstract syntax tree.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Ast {
     /// A block of statements
     Block(Vec<Ast>),
