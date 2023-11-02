@@ -123,6 +123,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "hypec"
+version = "0.1.0"
+dependencies = [
+ "hypescript-bytecode",
+ "hypescript-lang",
+ "structopt",
+]
+
+[[package]]
 name = "hypescript-bytecode"
 version = "0.1.0"
 dependencies = [

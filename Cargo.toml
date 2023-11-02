@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "hype",
+  "hypec",
   "hypescript-bytecode",
   "hypescript-lang",
   "hypescript-util",
