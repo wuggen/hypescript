@@ -37,6 +37,9 @@ fn run() -> Result<(), String> {
         }
         err
     })?;
+
+    hypescript_lang::types::typecheck(&ast).map_err(|e| e.to_string())?;
+
     let instructions = hypescript_lang::codegen::translate(&ast).map_err(|e| e.to_string())?;
 
     let mut output = File::create(options.output_file()).map_err(|e| e.to_string())?;
