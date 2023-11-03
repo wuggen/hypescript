@@ -73,6 +73,59 @@ impl Display for Punct {
     }
 }
 
+/// Binary operator binding strength.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BindingStrength {
+    /// Weakly-binding logical operators: `||`
+    LogWeak,
+
+    /// Strongly-binding logical operators: `&&`
+    LogStrong,
+
+    /// Comparison operators: `>`, `>=`, `<`, `<=`, `==`, `!=`
+    Comp,
+
+    /// Weakly-binding arithmetic operators: `+`, `-`
+    ArithWeak,
+
+    /// Mid-level arithmetic operators: `&`, `|`, `^`
+    ArithMid,
+
+    /// Strongly-binding arithmetic operators: `*`, `/`, `%`
+    ArithStrong,
+}
+
+impl BindingStrength {
+    fn classify(sym: BinopSym) -> Self {
+        use BindingStrength::*;
+
+        match sym {
+            BinopSym::Mul | BinopSym::Div | BinopSym::Mod => ArithStrong,
+            BinopSym::BitOr | BinopSym::BitAnd | BinopSym::BitXor => ArithMid,
+            BinopSym::Plus | BinopSym::Minus => ArithWeak,
+            BinopSym::Eq
+            | BinopSym::NEq
+            | BinopSym::Greater
+            | BinopSym::Less
+            | BinopSym::GreaterEq
+            | BinopSym::LessEq => Comp,
+            BinopSym::LogAnd => LogStrong,
+            BinopSym::LogOr => LogWeak,
+        }
+    }
+
+    fn increment(self) -> Option<Self> {
+        match self {
+            BindingStrength::LogWeak => Some(Self::LogStrong),
+            BindingStrength::LogStrong => Some(Self::Comp),
+            BindingStrength::Comp => Some(Self::ArithWeak),
+            BindingStrength::ArithWeak => Some(Self::ArithMid),
+            BindingStrength::ArithMid => Some(Self::ArithStrong),
+            BindingStrength::ArithStrong => None,
+        }
+    }
+}
+
 fn ident_or_kw() -> impl Parser<char, Tok, Error = Simple<char>> {
     text::ident().map(|id: String| match id.as_str() {
         "if" => Tok::Kw(Kw::If),
@@ -107,6 +160,7 @@ fn binop() -> impl Parser<char, Tok, Error = Simple<char>> {
         just("&").to(BinopSym::BitAnd),
         just("||").to(BinopSym::LogOr),
         just("|").to(BinopSym::BitOr),
+        just("^").to(BinopSym::BitXor),
     ))
     .map(Tok::Binop)
 }
@@ -262,33 +316,43 @@ fn factor(
     })
 }
 
-fn term(expr: Recursive<Tok, Ast, Simple<Tok>>) -> impl Parser<Tok, Ast, Error = Simple<Tok>> + '_ {
-    let op = filter_map(|span, tok| match tok {
-        Tok::Binop(sym) if sym != BinopSym::Plus && sym != BinopSym::Minus => Ok(sym),
-        _ => Err(Simple::custom(
-            span,
-            "expected tight-binding binary operator",
-        )),
+fn expr_binop_strength(
+    strength: BindingStrength,
+    expr: Recursive<Tok, Ast, Simple<Tok>>,
+) -> Box<dyn Parser<Tok, Ast, Error = Simple<Tok>> + '_> {
+    let op = filter_map(move |span, tok| match tok {
+        Tok::Binop(sym) => {
+            let sym_strength = BindingStrength::classify(sym);
+            if sym_strength != strength {
+                Err(Simple::custom(
+                    span,
+                    format!("expected operator of binding strength {strength:?}"),
+                ))
+            } else {
+                Ok(sym)
+            }
+        }
+        _ => Err(Simple::custom(span, "expected binary operator")),
     });
 
-    factor(expr.clone())
-        .then(op.then(factor(expr)).repeated())
-        .foldl(|lhs, (sym, rhs)| Ast::binop(sym, lhs, rhs))
+    if let Some(next_strength) = strength.increment() {
+        Box::new(
+            expr_binop_strength(next_strength, expr.clone())
+                .then(op.then(expr_binop_strength(next_strength, expr)).repeated())
+                .foldl(|lhs, (sym, rhs)| Ast::binop(sym, lhs, rhs)),
+        )
+    } else {
+        Box::new(
+            factor(expr.clone())
+                .then(op.then(factor(expr)).repeated())
+                .foldl(|lhs, (sym, rhs)| Ast::binop(sym, lhs, rhs)),
+        )
+    }
 }
 
 fn expr() -> Recursive<'static, Tok, Ast, Simple<Tok>> {
     recursive(|expr| {
-        let op = filter_map(|span, tok| match tok {
-            Tok::Binop(sym) if sym == BinopSym::Plus || sym == BinopSym::Minus => Ok(sym),
-            _ => Err(Simple::custom(
-                span,
-                "expected loose-binding binary operator",
-            )),
-        });
-
-        term(expr.clone())
-            .then(op.then(term(expr)).repeated())
-            .foldl(|lhs, (sym, rhs)| Ast::binop(sym, lhs, rhs))
+        expr_binop_strength(BindingStrength::LogWeak, expr)
     })
 }
 
@@ -483,9 +547,9 @@ a + b /* this also */ more"#,
         test_parser("print x;", &[Ast::print(Ast::var("x"))]);
         test_parser(
             "print true || b + x;",
-            &[Ast::print(Ast::plus(
-                Ast::log_or(Ast::Boolean(true), Ast::var("b")),
-                Ast::var("x"),
+            &[Ast::print(Ast::log_or(
+                Ast::Boolean(true),
+                Ast::plus(Ast::var("b"), Ast::var("x")),
             ))],
         );
     }
